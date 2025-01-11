@@ -84,7 +84,7 @@ void destroyQueue(TQueue *queue)
 }
 
 int subscriberSearch(TQueue* queue, pthread_t* thread)
-{
+{ // IT doesnt need mutex - mutex is provided by other functions
     int i, index = -1;
     pthread_mutex_lock(&queue->lock); // critical section
 
