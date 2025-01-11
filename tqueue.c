@@ -146,6 +146,7 @@ void unsubscribe(TQueue *queue, pthread_t *thread)
     while (subscriber->msgesToRead[i] != NULL)
     {
         queue->recipients[subscriber->msgesToRead[i]]--;
+// i++
     }
 
     for (i = index; i < queue->subscribersCount - 1; i++)
@@ -294,6 +295,7 @@ void setSize(TQueue *queue, int *size)
                     memcpy(newMsgesToRead, &subscriber->msgesToRead[1], queue->maxSize * sizeof(int));
                     free(subscriber->msgesToRead);
                     subscriber->msgesToRead = newMsgesToRead;
+//subscriber->available--
                 }
             }
 
