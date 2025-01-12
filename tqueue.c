@@ -1,47 +1,4 @@
-#include <stdio.h>
-#include <stdlib.h>
-#include <pthread.h>
-#include <string.h>
-#include <semaphore.h>
-
-typedef struct Subscriber
-{
-    pthread_t* subscriberThread;
-    int* msgesToRead;
-    int availableMessages;
-} Subscriber;
-
-typedef struct TQueue
-{
-    void** messages;
-    int maxSize; // Size of the queue
-    int currentSize; // Number of currently stored elements
-    int head; // Oldest element
-    int tail; // Newest element
-    int* recipients;
-    pthread_mutex_t lock; // Global lock to secure resources
-    sem_t emptySlots; // Counting semaphores to keep track of produced and consumed elements
-    sem_t filledSlots;
-    int subscribersCount;
-    int subscribersSize;
-    Subscriber* subscribers;
-} TQueue;
-
-void createQueue(TQueue *queue, int *size); //inicjuje strukturę TQueue reprezentującą nową kolejkę o początkowym, maksymalnym rozmiarze size.
-void destroyQueue(TQueue *queue); //usuwa kolejkę queue i zwalnia pamięć przez nią zajmowaną. Próba dostarczania
-//lub odbioru nowych wiadomości z takiej kolejki będzie kończyła się błędem.
-void subscribe(TQueue *queue, pthread_t *thread); //rejestruje wątek thread jako kolejnego odbiorcę wiadomości z kolejki queue.
-void unsubscribe(TQueue *queue, pthread_t *thread); //wyrejestrowuje wątek thread z kolejki queue. Nieodebrane przez wątek wiadomości są traktowane jako odebrane
-void addMsg(TQueue *queue, void *msg); //wstawia do kolejki queue nową wiadomość reprezentowaną wskaźnikiem msg.
-void* getMsg(TQueue *queue, pthread_t *thread); //odbiera pojedynczą wiadomość z kolejki queue dla wątku thread. Jeżeli nie ma
-//nowych wiadomości, funkcja jest blokująca. Jeżeli wątek thread nie jest zasubskrybowany – zwracany jest pusty wskaźnik NULL.
-int getAvailable(TQueue *queue, pthread_t *thread); //zwraca liczbę wiadomości z kolejki queue dostępnych dla wątku thread.
-void removeMsg(TQueue *queue, void *msg); //usuwa wiadomość msg z kolejki.
-void setSize(TQueue *queue, int *size); 
-// ustala nowy, maksymalny rozmiar kolejki. Jeżeli nowy rozmiar jest mniejszy od
-// aktualnej liczby wiadomości w kolejce, to nadmiarowe wiadomości są usuwane
-// z kolejki, począwszy od najstarszych.
-int subscriberSearch(TQueue* queue, pthread_t* thread); // matches thread number with subscriber's index
+#include "tqueue.h"
 
 void createQueue(TQueue *queue, int *size)
 {
@@ -55,8 +12,8 @@ void createQueue(TQueue *queue, int *size)
     queue->subscribersSize = 10;
     queue->subscribers = NULL;
     pthread_mutex_init(&queue->lock, NULL);
+    pthread_cond_init(&queue->newMessages, NULL);
     sem_init(&queue->emptySlots, 0, queue->maxSize);
-    sem_init(&queue->filledSlots, 0, 0);
 }
 
 void destroyQueue(TQueue *queue)
@@ -77,16 +34,14 @@ void destroyQueue(TQueue *queue)
     }
 
     sem_destroy(&queue->emptySlots);
-    sem_destroy(&queue->filledSlots);
     pthread_mutex_destroy(&queue->lock);
 
     free(queue);
 }
 
 int subscriberSearch(TQueue* queue, pthread_t* thread)
-{ // IT doesnt need mutex - mutex is provided by other functions
+{
     int i, index = -1;
-    pthread_mutex_lock(&queue->lock); // critical section
 
     for (i = 0; i < queue->subscribersCount; i++)
     {
@@ -97,14 +52,14 @@ int subscriberSearch(TQueue* queue, pthread_t* thread)
         }
     }
 
-    pthread_mutex_unlock(&queue->lock); // End of the critical section
-
     return index;
 }
 
 void subscribe(TQueue *queue, pthread_t *thread)
 {
     pthread_mutex_lock(&queue->lock);
+    int i;
+
     if (queue->subscribers == NULL)
     {
         queue->subscribers = malloc(queue->subscribersSize * sizeof(Subscriber));
@@ -124,29 +79,62 @@ void subscribe(TQueue *queue, pthread_t *thread)
         queue->subscribersSize = newSize;
     }
 
+    for (i = 0; i < queue->subscribersCount; i++)
+    {
+        if (pthread_equal(*queue->subscribers[i].subscriberThread, *thread))
+        {
+            for (i = 0; i < *thread; i++)
+            {
+                printf("\t");
+            }
+
+            printf("subscriber %lu already added\n", *thread);
+            return;
+        }
+    }
+
     Subscriber* subscriber = &queue->subscribers[queue->subscribersCount];
     subscriber->subscriberThread = thread;
     subscriber->msgesToRead = malloc(queue->maxSize * sizeof(int));
+    for (i = 0; i < queue->maxSize; i++)
+    {
+        subscriber->msgesToRead[i] = -1;
+    }
+
     subscriber->availableMessages = 0;
 
     queue->subscribersCount++;
 
+    for (i = 0; i < *thread; i++)
+    {
+        printf("\t");
+    }
+    
+    printf("Thread %lu has just subscribed\n", *thread);
     pthread_mutex_unlock(&queue->lock);
 }
 
 void unsubscribe(TQueue *queue, pthread_t *thread)
 {
     int index, i;
-    index = subscriberSearch(queue, thread);
 
     pthread_mutex_lock(&queue->lock);
 
-    Subscriber* subscriber = &queue->subscribers[index];
+    index = subscriberSearch(queue, thread);
 
-    while (subscriber->msgesToRead[i] != NULL)
+    if (index == -1)
+    {
+        pthread_mutex_unlock(&queue->lock);
+        return;
+    }
+
+    Subscriber* subscriber = &queue->subscribers[index];
+    subscriber->availableMessages = 0;
+
+    for (i = 0; i < subscriber->availableMessages; i++)
     {
         queue->recipients[subscriber->msgesToRead[i]]--;
-// i++
+        subscriber->msgesToRead[i] = -1;
     }
 
     for (i = index; i < queue->subscribersCount - 1; i++)
@@ -155,6 +143,11 @@ void unsubscribe(TQueue *queue, pthread_t *thread)
     }
 
     queue->subscribersCount--;
+    for (i = 0; i < *thread; i++)
+    {
+        printf("\t");
+    }
+    printf("Thread %lu is unsubscribing\n", *thread);
 
     pthread_mutex_unlock(&queue->lock);
 }
@@ -163,6 +156,9 @@ void addMsg(TQueue *queue, void *msg)
 {
     sem_wait(&queue->emptySlots); // Wait for an empty slot
     pthread_mutex_lock(&queue->lock); // entering critical section
+    
+    printf("writer is trying to add a message\n");
+
     queue->messages[queue->tail] = msg;
     queue->recipients[queue->tail] = queue->subscribersCount;
 
@@ -175,43 +171,77 @@ void addMsg(TQueue *queue, void *msg)
     }
 
     queue->tail = (queue->tail+1) % queue->maxSize;
-    pthread_mutex_unlock(&queue->lock); // leaving critical section
+    printf("Writer thread added new message: %d\n", (int*)msg);
 
-    sem_post(&queue->filledSlots); // V to signal readers that a message is available
+    if (queue->subscribersCount == 0)
+    {
+        pthread_mutex_unlock(&queue->lock);
+        removeMsg(queue, msg);
+    }
+    else
+    {
+        pthread_mutex_unlock(&queue->lock); // leaving critical section
+        pthread_cond_broadcast(&queue->newMessages);
+    }
 }
 
 void* getMsg(TQueue *queue, pthread_t *thread)
 {
-    int index = subscriberSearch(queue, thread);
     int lastRead, i = 0;
-    sem_wait(&queue->filledSlots); // Wait till you get anything to read
-    pthread_mutex_lock(&queue->lock); // Second critical section
-
-    if (queue->subscribers[index].msgesToRead[0] != NULL)
+    pthread_mutex_lock(&queue->lock); // critical section
+    for (i = 0; i < *thread; i++)
     {
-        // if there is any available message, take its index
-        lastRead = queue->subscribers[index].msgesToRead[0];
+        printf("\t");
     }
-    else
+    printf("Thread %lu is waitning for message\n", *thread);
+    int index = subscriberSearch(queue, thread);
+
+    if (index == -1)
     {
         pthread_mutex_unlock(&queue->lock);
-        return;
+        return NULL;
     }
 
-    void* msg = NULL;
+    while (queue->subscribers[index].availableMessages == 0)
+    {
+        for (i = 0; i < *thread; i++)
+        {
+            printf("\t");
+        }
 
-    msg = queue->messages[lastRead];
+        printf("waiting\n");
+        pthread_cond_wait(&queue->newMessages, &queue->lock); // Wait till you get anything to read
+    }
+
+    // if there is any available message, take its index
+    lastRead = queue->subscribers[index].msgesToRead[0];
+
+    void* msg = queue->messages[lastRead];
+
     queue->recipients[lastRead]--;
     queue->subscribers[index].availableMessages--;
 
-    while (queue->subscribers[index].msgesToRead[i + 1] != NULL || i < queue->maxSize-1)
+    for (i = 0; i < queue->subscribers[index].availableMessages; i++)
     {
         queue->subscribers[index].msgesToRead[i] = queue->subscribers[index].msgesToRead[i + 1];
     }
 
-    queue->subscribers[index].msgesToRead[i] = NULL;
+    for (i = 0; i < *thread; i++)
+    {
+        printf("\t");
+    }
 
-    pthread_mutex_unlock(&queue->lock); // End of second critical section
+    printf("Thread %lu received message: %d\n", *thread, (int*)msg);
+
+    if (queue->recipients[lastRead] == 0)
+    {
+        pthread_mutex_unlock(&queue->lock);
+        removeMsg(queue, msg);
+    }
+    else
+    {
+        pthread_mutex_unlock(&queue->lock); // leaving critical section
+    }
 
     return msg;
 }
@@ -219,6 +249,10 @@ void* getMsg(TQueue *queue, pthread_t *thread)
 int getAvailable(TQueue *queue, pthread_t *thread)
 {
     int index = subscriberSearch(queue, thread);
+    if (index == -1)
+    {
+        return 0;
+    }
 
     return queue->subscribers[index].availableMessages;
 }
@@ -232,17 +266,18 @@ void removeMsg(TQueue *queue, void *msg)
     {
         if (queue->messages[i] == msg)
         {
-            queue->messages[i] = NULL;
             found = 1;
             index = i;
             break;
         }
     }
 
-    if (found == 1)
+    if (found == 1 && queue->recipients[index] == 0)
     {
+        printf("i am removing the message of index: %d and content: %d\n", index, queue->messages[index]);
+        queue->messages[i] = NULL;
         queue->currentSize--;
-        queue->recipients[index] = NULL;
+        queue->recipients[index] = 0;
         sem_post(&queue->emptySlots); // V to signal created empty slot
         
         if (index == queue->head)
@@ -267,6 +302,7 @@ void removeMsg(TQueue *queue, void *msg)
 
 void setSize(TQueue *queue, int *size) 
 {
+    printf("setSize\n");
     if (queue == NULL || size == NULL || *size <= 0) 
     {
         return; // Invalid input
@@ -275,6 +311,8 @@ void setSize(TQueue *queue, int *size)
     pthread_mutex_lock(&queue->lock); // enters critical section
 
     int newSize = *size, index, i, j;
+
+    printf("newsize: %d\n", newSize);
 
     if (newSize < queue->currentSize) 
     {
@@ -295,7 +333,7 @@ void setSize(TQueue *queue, int *size)
                     memcpy(newMsgesToRead, &subscriber->msgesToRead[1], queue->maxSize * sizeof(int));
                     free(subscriber->msgesToRead);
                     subscriber->msgesToRead = newMsgesToRead;
-//subscriber->available--
+                    subscriber->availableMessages--;
                 }
             }
 
@@ -321,9 +359,11 @@ void setSize(TQueue *queue, int *size)
         newRecipients[i] = queue->recipients[index];
     }
 
-    // Free the old messages array
+    // Free the old arrays
     free(queue->messages);
     free(queue->recipients);
+
+    printf("Writer thread is changing the max size form %d to %d\n", queue->maxSize, newSize);
 
     // Update queue properties
     queue->messages = newMessages;
@@ -333,9 +373,7 @@ void setSize(TQueue *queue, int *size)
     queue->tail = queue->currentSize;
 
     sem_destroy(&queue->emptySlots);
-    sem_destroy(&queue->filledSlots);
     sem_init(&queue->emptySlots, 0, newSize - queue->currentSize);
-    sem_init(&queue->filledSlots, 0, queue->currentSize);
 
     pthread_mutex_unlock(&queue->lock); // end of the critical section
 }
