@@ -1,14 +1,13 @@
 #include "tqueue.h"
 
-// Include the declarations for your provided functions here or assume they are included.
-
 void* readerFunc(void* arg) 
 {
     TQueue* queue = (TQueue*)arg;
     pthread_t self = pthread_self();
     int num = 7, randNum;
     randNum = rand() % num;
-    
+    subscribe(queue, &self);
+
     while (queue != NULL) 
     {
         randNum = rand() % num;
@@ -46,12 +45,12 @@ void* writerFunc(void* arg)
     {
         randNum = rand() % num;
 
-        if (randNum > 0 && randNum < 4)
+        if (randNum < 2)
         {
             int *message = i;
             addMsg(queue, message);
         }
-        else if (randNum == 0)
+        else if (randNum < 5)
         {
             int j, newSize, randSize = rand()%num;
             for (j = 0; j < randSize; j++)
@@ -62,7 +61,7 @@ void* writerFunc(void* arg)
             {
                 newSize *= -1;
             }
-            setSize(queue, &newSize);
+            setSize(queue, newSize+queue->maxSize);
         }
         else
         {
@@ -84,10 +83,80 @@ void* writerFunc(void* arg)
     }
 
     printf("newSize: %d\n", newSize);
-    setSize(queue, &newSize);
+    setSize(queue, newSize);
 
     sleep(5);
     destroyQueue(queue);
+
+    return NULL;
+}
+
+void* writerFunc2(void* arg)
+{
+    TQueue* queue = (TQueue*)arg;
+    pthread_t self = pthread_self();
+    int* i = 0, j = 0;
+    int newSize = -2;
+    for (j = 0; j < 90; j++);
+    j = 0;
+
+    while(1)
+    {
+        printf("WIELKIE JOT: %d\n", j);
+        addMsg(queue, i++);
+        //setSize(queue, (newSize+queue->maxSize));
+        printf("Aktualny rozmiar i liczba wiadomości: %d %d\n", queue->maxSize, queue->currentSize);
+        addMsg(queue, i++);
+        addMsg(queue, i++);
+        addMsg(queue, i++);
+        addMsg(queue, i++);
+        setSize(queue, newSize+queue->maxSize);
+        addMsg(queue, i++);
+        j++;
+        if (j >= 15)
+        {
+            destroyQueue(queue);
+            return NULL;
+        }
+
+        if (queue->maxSize == 1)
+        {
+            setSize(queue, 10);
+        }
+        
+    }
+
+    return NULL;
+}
+
+void* readerFunc2(void* arg)
+{
+    TQueue* queue = (TQueue*)arg;
+    pthread_t self = pthread_self();
+    int i;
+
+    while(queue != NULL)
+    {
+        subscribe(queue, &self);
+        for (i = 0; i < 2*self; i++)
+        {
+            printf("\t");
+        }
+        printf("Thread %lu has %d available messages\n", self, getAvailable(queue, &self));
+        getMsg(queue, &self);
+        unsubscribe(queue, &self);
+        getMsg(queue, &self);
+        unsubscribe(queue, &self);
+        getMsg(queue, &self);
+        subscribe(queue, &self);
+        for (i = 0; i < 2*self; i++)
+        {
+            printf("\t");
+        }
+        printf("Thread %lu has %d available messages\n", self, getAvailable(queue, &self));
+        getMsg(queue, &self);
+        getMsg(queue, &self);
+    }
 
     return NULL;
 }
@@ -96,16 +165,16 @@ int main()
 {
     // Initialize a queue with a maximum size
     int maxSize = 5;
-    TQueue queue;
-    createQueue(&queue, &maxSize);
+    TQueue* queue;
+    queue = createQueue(maxSize);
 
     // Set up threads (4 subscribers and a writer)
     pthread_t writer, subscriber1, subscriber2, subscriber3, subscriber4;
-    pthread_create(&writer, NULL, writerFunc, &queue);
-    pthread_create(&subscriber1, NULL, readerFunc, &queue);
-    pthread_create(&subscriber2, NULL, readerFunc, &queue);
-    pthread_create(&subscriber3, NULL, readerFunc, &queue);
-    pthread_create(&subscriber4, NULL, writerFunc, &queue);
+    pthread_create(&subscriber1, NULL, readerFunc2, queue);
+    pthread_create(&subscriber2, NULL, readerFunc2, queue);
+    pthread_create(&subscriber3, NULL, readerFunc2, queue);
+    pthread_create(&subscriber4, NULL, readerFunc2, queue);
+    pthread_create(&writer, NULL, writerFunc2, queue);
 
     pthread_join(subscriber1, NULL);
     pthread_join(subscriber2, NULL);
@@ -114,7 +183,7 @@ int main()
     pthread_join(writer, NULL);
 
     // Destroy the queue
-    destroyQueue(&queue);
+    destroyQueue(queue);
 
     return 0;
 }

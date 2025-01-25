@@ -31,7 +31,7 @@ typedef struct TQueue
     Subscriber* subscribers;
 } TQueue;
 
-void createQueue(TQueue *queue, int *size); //inicjuje strukturę TQueue reprezentującą nową kolejkę o początkowym, maksymalnym rozmiarze size.
+TQueue* createQueue(int size); //inicjuje strukturę TQueue reprezentującą nową kolejkę o początkowym, maksymalnym rozmiarze size.
 void destroyQueue(TQueue *queue); //usuwa kolejkę queue i zwalnia pamięć przez nią zajmowaną. Próba dostarczania
 //lub odbioru nowych wiadomości z takiej kolejki będzie kończyła się błędem.
 void subscribe(TQueue *queue, pthread_t *thread); //rejestruje wątek thread jako kolejnego odbiorcę wiadomości z kolejki queue.
@@ -41,7 +41,7 @@ void* getMsg(TQueue *queue, pthread_t *thread); //odbiera pojedynczą wiadomoś�
 //nowych wiadomości, funkcja jest blokująca. Jeżeli wątek thread nie jest zasubskrybowany – zwracany jest pusty wskaźnik NULL.
 int getAvailable(TQueue *queue, pthread_t *thread); //zwraca liczbę wiadomości z kolejki queue dostępnych dla wątku thread.
 void removeMsg(TQueue *queue, void *msg); //usuwa wiadomość msg z kolejki.
-void setSize(TQueue *queue, int *size); 
+void setSize(TQueue *queue, int size); 
 // ustala nowy, maksymalny rozmiar kolejki. Jeżeli nowy rozmiar jest mniejszy od
 // aktualnej liczby wiadomości w kolejce, to nadmiarowe wiadomości są usuwane
 // z kolejki, począwszy od najstarszych.
