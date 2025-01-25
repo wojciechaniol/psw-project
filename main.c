@@ -20,10 +20,6 @@ void* readerFunc(void* arg)
         {
             printf("Thread %lu has %d available messages\n", self, getAvailable(queue, &self));
         }
-        else if (randNum == 2)
-        {
-            sleep(3);
-        }
         else if (randNum == 3 || randNum == 6)
         {
             subscribe(queue, &self);
@@ -63,10 +59,6 @@ void* writerFunc(void* arg)
             }
             setSize(queue, newSize+queue->maxSize);
         }
-        else
-        {
-            sleep(3);
-        }
     }
 
     int j, newSize, randSize = rand()%num+1;
@@ -74,7 +66,7 @@ void* writerFunc(void* arg)
     {
         newSize = randSize*(-1);
     }
-
+    
     newSize = queue->maxSize+newSize;
 
     if (newSize < 0)
@@ -82,10 +74,7 @@ void* writerFunc(void* arg)
         newSize *= -1;
     }
 
-    printf("newSize: %d\n", newSize);
     setSize(queue, newSize);
-
-    sleep(5);
     destroyQueue(queue);
 
     return NULL;
@@ -102,10 +91,8 @@ void* writerFunc2(void* arg)
 
     while(1)
     {
-        printf("WIELKIE JOT: %d\n", j);
         addMsg(queue, i++);
         //setSize(queue, (newSize+queue->maxSize));
-        printf("Aktualny rozmiar i liczba wiadomości: %d %d\n", queue->maxSize, queue->currentSize);
         addMsg(queue, i++);
         addMsg(queue, i++);
         addMsg(queue, i++);
@@ -187,10 +174,3 @@ int main()
 
     return 0;
 }
-
-/*
-What needs to be checked:
-setSize;
-size of the queue -> most of the time we didnt even get to index 4 when the size was 5;
-why removing happens when not everyone has read - e.g. third reader read one message twice - propably problem with subscribersearch and shifting subscribers;
-*/
