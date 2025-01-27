@@ -232,7 +232,7 @@ void* getMsg(TQueue *queue, pthread_t *thread)
         //     printf("\t");
         // }
 
-        // printf("waiting\n");
+        printf("waiting\n");
         pthread_cond_wait(&queue->newMessages, &queue->lock); // Wait till you get anything to read
     }
 

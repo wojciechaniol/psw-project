@@ -4,21 +4,17 @@ void* writerFunc2(void* arg)
 {
     TQueue* queue = (TQueue*)arg;
     int* i = 0, j = 0;
-    int newSize = -2;
 
     while(1)
     {
+		printf("writer j: %d\n", j);
         addMsg(queue, i++);
-		printf("%d\n", j);
         //setSize(queue, (newSize+queue->maxSize));
         addMsg(queue, i++);
-		printf("%d\n", j);
         j++;
-		printf("moving on\n");
         if (j >= 15)
         {
-            destroyQueue(queue);
-            return NULL;
+            break;
         }
     }
 
@@ -30,13 +26,15 @@ void* readerFunc2(void* arg)
     TQueue* queue = (TQueue*)arg;
     pthread_t self = pthread_self();
     subscribe(queue, &self);
+	int j = 0;
 
-    while(queue != NULL)
+    while(j < 10)
     {
-		printf("subscribed for thread: %lu\n", self);
-        getMsg(queue, &self);
-		printf("message recieved for thread: %lu\n",  self);
+		printf("recieving %d\n", j);
+		getMsg(queue, &self);
+		j++;
     }
+	unsubscribe(queue, &self);
 
     return NULL;
 }
@@ -47,7 +45,6 @@ int main()
     int maxSize = 5;
     TQueue* queue;
     queue = createQueue(maxSize);
-	printf("poczatek\n");
 
     // Set up threads (4 subscribers and a writer)
     pthread_t writer, subscriber1, subscriber2, subscriber3, subscriber4;
