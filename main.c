@@ -1,116 +1,25 @@
-#include "tqueue.h"
-
-void* readerFunc(void* arg) 
-{
-    TQueue* queue = (TQueue*)arg;
-    pthread_t self = pthread_self();
-    int num = 7, randNum;
-    randNum = rand() % num;
-    subscribe(queue, &self);
-
-    while (queue != NULL) 
-    {
-        randNum = rand() % num;
-
-        if (randNum == 0 || randNum == 4)
-        {
-            void* message = getMsg(queue, &self);
-        }
-        else if (randNum == 1)
-        {
-            printf("Thread %lu has %d available messages\n", self, getAvailable(queue, &self));
-        }
-        else if (randNum == 3 || randNum == 6)
-        {
-            subscribe(queue, &self);
-        }
-        else
-        {
-            unsubscribe(queue, &self);
-        }
-    }
-    return NULL;
-}
-
-void* writerFunc(void* arg)
-{
-    TQueue* queue = (TQueue*)arg;
-    int num = 5, randNum, i;
-
-    for (i = 0; i < 10; i++)
-    {
-        randNum = rand() % num;
-
-        if (randNum < 2)
-        {
-            int *message = i;
-            addMsg(queue, message);
-        }
-        else if (randNum < 5)
-        {
-            int j, newSize, randSize = rand()%num;
-            for (j = 0; j < randSize; j++)
-            {
-                newSize = randSize*(-1);
-            }
-            if (newSize+queue->maxSize < 0)
-            {
-                newSize *= -1;
-            }
-            setSize(queue, newSize+queue->maxSize);
-        }
-    }
-
-    int j, newSize, randSize = rand()%num+1;
-    for (j = 0; j < randSize; j++)
-    {
-        newSize = randSize*(-1);
-    }
-    
-    newSize = queue->maxSize+newSize;
-
-    if (newSize < 0)
-    {
-        newSize *= -1;
-    }
-
-    setSize(queue, newSize);
-    destroyQueue(queue);
-
-    return NULL;
-}
+#include "queue.h"
 
 void* writerFunc2(void* arg)
 {
     TQueue* queue = (TQueue*)arg;
-    pthread_t self = pthread_self();
     int* i = 0, j = 0;
     int newSize = -2;
-    for (j = 0; j < 90; j++);
-    j = 0;
 
     while(1)
     {
         addMsg(queue, i++);
+		printf("%d\n", j);
         //setSize(queue, (newSize+queue->maxSize));
         addMsg(queue, i++);
-        addMsg(queue, i++);
-        addMsg(queue, i++);
-        addMsg(queue, i++);
-        setSize(queue, newSize+queue->maxSize);
-        addMsg(queue, i++);
+		printf("%d\n", j);
         j++;
+		printf("moving on\n");
         if (j >= 15)
         {
             destroyQueue(queue);
             return NULL;
         }
-
-        if (queue->maxSize == 1)
-        {
-            setSize(queue, 10);
-        }
-        
     }
 
     return NULL;
@@ -120,29 +29,13 @@ void* readerFunc2(void* arg)
 {
     TQueue* queue = (TQueue*)arg;
     pthread_t self = pthread_self();
-    int i;
+    subscribe(queue, &self);
 
     while(queue != NULL)
     {
-        subscribe(queue, &self);
-        for (i = 0; i < 2*self; i++)
-        {
-            printf("\t");
-        }
-        printf("Thread %lu has %d available messages\n", self, getAvailable(queue, &self));
+		printf("subscribed for thread: %lu\n", self);
         getMsg(queue, &self);
-        unsubscribe(queue, &self);
-        getMsg(queue, &self);
-        unsubscribe(queue, &self);
-        getMsg(queue, &self);
-        subscribe(queue, &self);
-        for (i = 0; i < 2*self; i++)
-        {
-            printf("\t");
-        }
-        printf("Thread %lu has %d available messages\n", self, getAvailable(queue, &self));
-        getMsg(queue, &self);
-        getMsg(queue, &self);
+		printf("message recieved for thread: %lu\n",  self);
     }
 
     return NULL;
@@ -154,6 +47,7 @@ int main()
     int maxSize = 5;
     TQueue* queue;
     queue = createQueue(maxSize);
+	printf("poczatek\n");
 
     // Set up threads (4 subscribers and a writer)
     pthread_t writer, subscriber1, subscriber2, subscriber3, subscriber4;
