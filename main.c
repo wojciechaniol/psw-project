@@ -3,19 +3,24 @@
 void* writerFunc2(void* arg)
 {
     TQueue* queue = (TQueue*)arg;
-    int* i = 0, j = 0;
+    int j = 0, size = 1;
+    char* letter = "ABCDEFGHIJKLMNOPRSTUWYZabcdefghijklmnoprstuwyz";
 
     while(1)
     {
-		printf("writer j: %d\n", j);
-        addMsg(queue, i++);
-        //setSize(queue, (newSize+queue->maxSize));
-        addMsg(queue, i++);
+        addMsg(queue, letter++);
+        addMsg(queue, letter++);
+        addMsg(queue, letter++);
+        addMsg(queue, letter++);
+        addMsg(queue, letter++);
+        addMsg(queue, letter++);
+        addMsg(queue, letter++);
         j++;
         if (j >= 15)
         {
             break;
         }
+        setSize(queue, queue->maxSize+size);
     }
 
     return NULL;
@@ -28,10 +33,10 @@ void* readerFunc2(void* arg)
     subscribe(queue, &self);
 	int j = 0;
 
-    while(j < 10)
+    while(j < 50)
     {
-		printf("recieving %d\n", j);
 		getMsg(queue, &self);
+        getMsg(queue, &self);
 		j++;
     }
 	unsubscribe(queue, &self);
@@ -42,7 +47,7 @@ void* readerFunc2(void* arg)
 int main() 
 {
     // Initialize a queue with a maximum size
-    int maxSize = 5;
+    int maxSize = 2;
     TQueue* queue;
     queue = createQueue(maxSize);
 
