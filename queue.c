@@ -17,7 +17,7 @@ TQueue* createQueue(int size)
         newQueue->subscribers = NULL;
         pthread_mutex_init(&newQueue->lock, NULL);
         pthread_cond_init(&newQueue->newMessages, NULL);
-        sem_init(&newQueue->emptySlots, 0, newQueue->maxSize);
+        pthread_cond_init(&newQueue->isFull, NULL);
     }
 
     return newQueue;
@@ -40,10 +40,11 @@ void destroyQueue(TQueue *queue)
         free(queue->subscribers);
     }
 
-    sem_destroy(&queue->emptySlots);
     pthread_mutex_destroy(&queue->lock);
 
     free(queue);
+
+    return;
 }
 
 int subscriberSearch(TQueue* queue, pthread_t* thread)
@@ -64,6 +65,12 @@ int subscriberSearch(TQueue* queue, pthread_t* thread)
 
 void subscribe(TQueue *queue, pthread_t *thread)
 {
+    if (queue == NULL)
+    {
+        perror("Queue NULL pointer");
+        return;
+    }
+
     pthread_mutex_lock(&queue->lock);
     int i;
 
@@ -92,9 +99,9 @@ void subscribe(TQueue *queue, pthread_t *thread)
         Subscriber* newSubscribers = realloc(queue->subscribers, newSize * sizeof(Subscriber));
         if (newSubscribers == NULL)
         {
-            perror("newSubscribers"); //destroyQueue??
-            pthread_mutex_unlock(&queue->lock);//czy to konieczne?
-            return;//exit(0);
+            perror("newSubscribers");
+            pthread_mutex_unlock(&queue->lock);
+            return;
         }
         free(queue->subscribers);
         queue->subscribers = newSubscribers;
@@ -126,6 +133,12 @@ void subscribe(TQueue *queue, pthread_t *thread)
 void unsubscribe(TQueue *queue, pthread_t *thread)
 {
     int index, i;
+
+    if (queue == NULL)
+    {
+        perror("Queue NULL pointer");
+        return;
+    }
 
     pthread_mutex_lock(&queue->lock);
 
@@ -170,8 +183,18 @@ void unsubscribe(TQueue *queue, pthread_t *thread)
 
 void addMsg(TQueue *queue, void *msg)
 {
-    sem_wait(&queue->emptySlots); // Wait for an empty slot
+    if (queue == NULL || msg == NULL)
+    {
+        perror("NULL pointer");
+        return;
+    }
+
     pthread_mutex_lock(&queue->lock); // entering critical section
+
+    while (queue->maxSize == queue->currentSize)
+    {
+        pthread_cond_wait(&queue->isFull, &queue->lock);
+    }
     
     // printf("writer is trying to add a message\n");
 
@@ -205,6 +228,13 @@ void addMsg(TQueue *queue, void *msg)
 void* getMsg(TQueue *queue, pthread_t *thread)
 {
     int lastRead, i = 0;
+
+    if (queue == NULL)
+    {
+        perror("Queue NULL pointer");
+        return NULL;
+    }
+
     pthread_mutex_lock(&queue->lock); // critical section
     int index = subscriberSearch(queue, thread);
 
@@ -232,7 +262,7 @@ void* getMsg(TQueue *queue, pthread_t *thread)
         //     printf("\t");
         // }
 
-        printf("waiting\n");
+        // printf("waiting\n");
         pthread_cond_wait(&queue->newMessages, &queue->lock); // Wait till you get anything to read
     }
 
@@ -256,7 +286,7 @@ void* getMsg(TQueue *queue, pthread_t *thread)
 
     // printf("Thread %lu received message: %d\n", *thread, (int*)msg);
 
-    if (queue->recipients[lastRead] == 0)
+    if (queue->recipients[lastRead] <= 0)
     {
         removeMsg(queue, msg);
     }
@@ -269,11 +299,21 @@ void* getMsg(TQueue *queue, pthread_t *thread)
 
 int getAvailable(TQueue *queue, pthread_t *thread)
 {
+    if (queue == NULL)
+    {
+        perror("Queue NULL pointer");
+        return -1;
+    }
+
+    pthread_mutex_lock(&queue->lock);
+
     int index = subscriberSearch(queue, thread);
     if (index == -1)
     {
         return 0;
     }
+
+    pthread_mutex_unlock(&queue->lock);
 
     return queue->subscribers[index].availableMessages;
 }
@@ -281,6 +321,17 @@ int getAvailable(TQueue *queue, pthread_t *thread)
 void removeMsg(TQueue *queue, void *msg)
 {
     int i, found = 0, index;
+
+    if (queue == NULL)
+    {
+        perror("Queue NULL pointer");
+        return;
+    }
+
+    if (msg == NULL)
+    {
+        return;
+    }
 
     for (i = 0; i < queue->maxSize; i++)
     {
@@ -294,10 +345,8 @@ void removeMsg(TQueue *queue, void *msg)
 
     if (found)
     {
-        // printf("i am removing the message of index: %d and content: %d\n", index, queue->messages[index]);
-        queue->messages[i] = NULL;
+        queue->messages[index] = NULL;
         queue->currentSize--;
-        sem_post(&queue->emptySlots); // V to signal created empty slot
         
         if (index == queue->head)
         {
@@ -314,6 +363,8 @@ void removeMsg(TQueue *queue, void *msg)
                 queue->tail = previous;
             }
         }
+
+        pthread_cond_broadcast(&queue->isFull);
     }
 
     return;
@@ -321,28 +372,26 @@ void removeMsg(TQueue *queue, void *msg)
 
 void setSize(TQueue *queue, int size) 
 {
-    pthread_mutex_lock(&queue->lock); // enters critical section
-
-    // printf("setSize\n");
     if (queue == NULL || size <= 0) 
     {
         perror("invalid input");
-        pthread_mutex_unlock(&queue->lock);
         return; // Invalid input
     }
 
+    pthread_mutex_lock(&queue->lock); // enters critical section
+
     int newSize = size, index, i, j;
 
-    // printf("newsize: %d\n", newSize);
-
-    if (newSize < queue->currentSize) 
+    if (newSize < queue->maxSize) 
     {
         // If the new size is smaller, remove excess messages starting from the oldest
         int messagesToRemove = queue->currentSize - newSize;
         for (i = 0; i < messagesToRemove; i++) 
         {
-            // using free instead of removeMsg to avoid using the lock again - possible solution is more than one lock (maybe distinctive lock for each slot)
+            // Using free instead of removeMsg to avoid using unnecessary operations on the message
+            free(queue->messages[queue->head]);
             queue->messages[queue->head] = NULL;
+            queue->recipients[queue->head] = 0;
 
             for (j = 0; j < queue->subscribersCount; j++) 
             {
@@ -350,17 +399,12 @@ void setSize(TQueue *queue, int size)
                 
                 if (subscriber->msgesToRead[0] == queue->head)
                 {
-                    int* newMsgesToRead = malloc(queue->maxSize * sizeof(int));
-                    if (newMsgesToRead == NULL)
-                    {
-                        pthread_mutex_unlock(&queue->lock);
-                        perror("newMsgs");
-                        return;
-                    }
-                    memcpy(newMsgesToRead, &subscriber->msgesToRead[1], queue->maxSize * sizeof(int));
-                    free(subscriber->msgesToRead);
-                    subscriber->msgesToRead = newMsgesToRead;
                     subscriber->availableMessages--;
+                    int k;
+                    for (k = 0; k < subscriber->availableMessages; k++)
+                    {
+                        subscriber->msgesToRead[k] = subscriber->msgesToRead[k+1];
+                    }
                 }
             }
 
@@ -380,11 +424,28 @@ void setSize(TQueue *queue, int size)
         return; 
     }
 
-    for (i = 1; i <= queue->currentSize; ++i) 
+    for (i = 0; i < queue->currentSize; i++) 
     {
         index = (queue->head + i) % queue->maxSize;
-        newMessages[i-1] = queue->messages[index];
-        newRecipients[i-1] = queue->recipients[index];
+        newMessages[i] = queue->messages[index];
+        newRecipients[i] = queue->recipients[index];
+    }
+
+    for (i = 0; i < queue->subscribersCount; i++) 
+    {
+        Subscriber *subscriber = &queue->subscribers[i];
+
+        int messageIndex = queue->currentSize-subscriber->availableMessages;
+
+        if (messageIndex < 0)
+        {
+            perror("Negative index\n");
+        }
+
+        for (j = 0; j < subscriber->availableMessages; j++)
+        {
+            subscriber->msgesToRead[j] = messageIndex+j;
+        }
     }
 
     // Free the old arrays
@@ -400,8 +461,10 @@ void setSize(TQueue *queue, int size)
     queue->head = 0;
     queue->tail = queue->currentSize;
 
-    sem_destroy(&queue->emptySlots);
-    sem_init(&queue->emptySlots, 0, newSize - queue->currentSize);
+    if (queue->currentSize < queue->maxSize)
+    {
+        pthread_cond_broadcast(&queue->isFull);
+    }
 
     pthread_mutex_unlock(&queue->lock); // end of the critical section
 }
