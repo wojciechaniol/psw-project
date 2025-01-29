@@ -2,7 +2,7 @@
 # Publish -- Subscribe
 ##### Programowanie systemowe i współbieżne
 ###### Wojciech Anioł 160137 wojciech.aniol@student.put.poznan.pl
-###### Data:     v1.0, 25.01.2025
+###### Data:     v2.0, 29.01.2025
 ###### Repozytorium: https://github.com/wojciechaniol/psw-project
 ---
 
@@ -19,7 +19,7 @@ typedef struct TQueue
     int tail; // Indeks najnowszego elementu
     int* recipients; // Tablica liczby odbiorców poszczególnych wiadomości
     pthread_mutex_t lock; // Globalny zamek
-    sem_t emptySlots; // Semafor wielowartościowy zliczający liczbę wolnych miejsc na wiadomości
+    pthread_cond_t isFull; // Zmienna warunkowa sprawdzająca czy pozostały jeszcze wolne miejsca do wysłania wiadomości
     pthread_cond_t newMessages; // Zemienna warunkowa sprawdzająca czy powstała nowa wiadomość
     int subscribersCount; // Zmienna zawierająca informacje o liczbie subskrybentów
     int subscribersSize; // Limit subskrybentów
