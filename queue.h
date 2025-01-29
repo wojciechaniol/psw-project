@@ -24,8 +24,8 @@ typedef struct TQueue
     int tail; // Newest element
     int* recipients;
     pthread_mutex_t lock; // Global lock to secure resources
-    sem_t emptySlots; // Counting semaphore to keep track of produced elements
-    pthread_cond_t newMessages;
+    pthread_cond_t isFull; // Conditional variable to check wheter is there any slot to send a message
+    pthread_cond_t newMessages; // Conditional variable for subscribers for them to wait if they have no message available
     int subscribersCount;
     int subscribersSize;
     Subscriber* subscribers;
