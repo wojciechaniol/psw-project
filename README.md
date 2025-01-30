@@ -52,14 +52,14 @@ typedef struct TQueue
 
 Kolejną istotną strukturą danych jest `Subscriber`, która opisuje poszczególnego subskrybenta:
 
-    ```C
-    typedef struct Subscriber
-    {
-        pthread_t* subscriberThread; // Wskaźnik na przypisany subskrybentowi wątek
-        int msgesToRead; // Indeks następnej nieodczytanej wiadomości
-        int availableMessages; // Liczba dostępnych wiadomości
-    } Subscriber;
-    ```
+```C
+typedef struct Subscriber
+{
+    pthread_t* subscriberThread; // Wskaźnik na przypisany subskrybentowi wątek
+    int msgesToRead; // Indeks następnej nieodczytanej wiadomości
+    int availableMessages; // Liczba dostępnych wiadomości
+} Subscriber;
+```
 
 # Funkcje 
 
