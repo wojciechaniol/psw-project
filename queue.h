@@ -3,6 +3,7 @@
 
 #include <stdio.h>
 #include <stdlib.h>
+#include <windows.h>
 #include <unistd.h>
 #include <pthread.h>
 #include <string.h>
@@ -10,8 +11,8 @@
 
 typedef struct Subscriber
 {
-    pthread_t* subscriberThread;
-    int* msgesToRead;
+    pthread_t subscriberThread;
+    int msgesToRead;
     int availableMessages;
 } Subscriber;
 
@@ -34,17 +35,17 @@ typedef struct TQueue
 TQueue* createQueue(int size); //inicjuje strukturę TQueue reprezentującą nową kolejkę o początkowym, maksymalnym rozmiarze size.
 void destroyQueue(TQueue *queue); //usuwa kolejkę queue i zwalnia pamięć przez nią zajmowaną. Próba dostarczania
 //lub odbioru nowych wiadomości z takiej kolejki będzie kończyła się błędem.
-void subscribe(TQueue *queue, pthread_t *thread); //rejestruje wątek thread jako kolejnego odbiorcę wiadomości z kolejki queue.
-void unsubscribe(TQueue *queue, pthread_t *thread); //wyrejestrowuje wątek thread z kolejki queue. Nieodebrane przez wątek wiadomości są traktowane jako odebrane
+void subscribe(TQueue *queue, pthread_t thread); //rejestruje wątek thread jako kolejnego odbiorcę wiadomości z kolejki queue.
+void unsubscribe(TQueue *queue, pthread_t thread); //wyrejestrowuje wątek thread z kolejki queue. Nieodebrane przez wątek wiadomości są traktowane jako odebrane
 void addMsg(TQueue *queue, void *msg); //wstawia do kolejki queue nową wiadomość reprezentowaną wskaźnikiem msg.
-void* getMsg(TQueue *queue, pthread_t *thread); //odbiera pojedynczą wiadomość z kolejki queue dla wątku thread. Jeżeli nie ma
+void* getMsg(TQueue *queue, pthread_t thread); //odbiera pojedynczą wiadomość z kolejki queue dla wątku thread. Jeżeli nie ma
 //nowych wiadomości, funkcja jest blokująca. Jeżeli wątek thread nie jest zasubskrybowany – zwracany jest pusty wskaźnik NULL.
-int getAvailable(TQueue *queue, pthread_t *thread); //zwraca liczbę wiadomości z kolejki queue dostępnych dla wątku thread.
+int getAvailable(TQueue *queue, pthread_t thread); //zwraca liczbę wiadomości z kolejki queue dostępnych dla wątku thread.
 void removeMsg(TQueue *queue, void *msg); //usuwa wiadomość msg z kolejki.
 void setSize(TQueue *queue, int size); 
 // ustala nowy, maksymalny rozmiar kolejki. Jeżeli nowy rozmiar jest mniejszy od
 // aktualnej liczby wiadomości w kolejce, to nadmiarowe wiadomości są usuwane
 // z kolejki, począwszy od najstarszych.
-int subscriberSearch(TQueue* queue, pthread_t* thread); // matches thread number with subscriber's index
+int subscriberSearch(TQueue* queue, pthread_t thread); // matches thread number with subscriber's index
 
 #endif
