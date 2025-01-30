@@ -3,7 +3,7 @@
 ## Programowanie systemowe i współbieżne
 ### Wojciech Anioł 160137 wojciech.aniol@student.put.poznan.pl
 ### Data:     v1.0, 25.01.2025
-### Repozytorium: [Clikcable-link](https://github.com/wojciechaniol/psw-project)
+### Repozytorium: https://github.com/wojciechaniol/psw-project
 
 ## Struktury danych
 ### TQueue
