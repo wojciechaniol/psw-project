@@ -1,10 +1,10 @@
-
+------------------------------------------------------------------
 # Publish - Subscribe
 ## Programowanie systemowe i współbieżne
 ### Wojciech Anioł 160137 wojciech.aniol@student.put.poznan.pl
 ### Data:     v2.0, 29.01.2025
 ### Repozytorium: https://github.com/wojciechaniol/psw-project
-
+------------------------------------------------------------------
 ## Struktury danych
 ### TQueue
 Główną strukturą jest struktura kolejki cyklicznej zaprezentowana poniżej:
@@ -25,6 +25,7 @@ typedef struct TQueue
     Subscriber* subscribers; // Tablica zawierająca informacje o poszczególnych subskrybentach
 } TQueue;
 ```
+------------------------------------------------------------------
 ### Subscriber
 Kolejną istotną strukturą danych jest `Subscriber`, który opisuje poszczególnego subskrybenta:
 ```C
@@ -35,6 +36,7 @@ typedef struct Subscriber
     int availableMessages; // Liczba dostępnych wiadomości
 } Subscriber;
 ```
+------------------------------------------------------------------
 ## Funkcje 
 Poniżej opisane są funkcje, które zostaną użyte w implementacji:
 - `TQueue* createQueue(int size)` - inicjuje strukturę TQueue reprezentującą nową kolejkę o początkowym, maksymalnym rozmiarze size.
@@ -47,7 +49,9 @@ Poniżej opisane są funkcje, które zostaną użyte w implementacji:
 - `void removeMsg(TQueue *queue, void *msg)` - usuwa wiadomość `msg` z kolejki.
 - `void setSize(TQueue *queue, int size)` - ustala nowy, maksymalny rozmiar kolejki. Jeżeli nowy rozmiar jest mniejszy od aktualnej liczby wiadomości w kolejce, to nadmiarowe wiadomości są usuwane z kolejki, począwszy od najstarszych.
 - `int subscriberSearch(TQueue* queue, pthread_t thread)` - dopasowuje numer wątku do subskrybenta.
+------------------------------------------------------------------
 ## Algorytm
+------------------------------------------------------------------
 ### Założenia
 Algorytm Publish-Subscribe ma działać w następujący sposób:
 1. Z perspektywy kolejki:
@@ -60,9 +64,10 @@ Algorytm Publish-Subscribe ma działać w następujący sposób:
    1. Dany subskrybent może otrzymać wiadomości, które zostały wstawione po jego subskrybcji.
    2. Jeżeli wątek nie subskrybuje kolejki otrzymuje NULL w odpowidziach na prośbę o wiadomość.
    3. Jeżeli wątek odebrał już wszystkie dostępne wiadomości, każda kolejna prośba o wiadomość jest działaniem blokującym.
-
+------------------------------------------------------------------
 ### Użyte mechanizmy
 Poniżej opisane są mechanizmy, które zostały użyte w opiswyanym algorytmie:
 1. Globalny mutex `lock`, który znajduje się w implementacji prawie wszystkich funkcji i chroni współdzielone zasoby kolejki, takie jak: wiadomości, wartości `head` oraz `tail`, tablicę subskrybentów, pomocniczą tablicę odbiorców i zmienne dotyczące rozmiaru kolejki czy liczby subskrybentów. Użycie pojdeynczego zamka ułatwia implementację i zapobiega działaniom blokującym, ponieważ praca publikującego i czytelników może następować sekwencyjnie - raz do kolejki dostęp mają czytelnicy, raz publikujący.
 2. Zmienna warunkowa `isFull` strzeże możliwości dodania więcej wiadomości niż jest miejsc na nie w kolejce. Brak miejsca w kolejce skutkuje uśpieniem wątku piszącego. Wybudzenie następuje po usunięciu którejś z wiadomości.
 3. Zmienna warunkowa `newMessages` służy jako zabezpieczenie na wypadek braku dostępnych wiadomości w kolejce, które mogłyby zostać odczytane przez czytelników. Jeżeli nie ma wiadomości, wątki czytelników próbujące odebrać wiadomość zostają uśpione i dopiero dodanie nowej wiadomości skutkuje wysłaniem sygnału o dostępności.
+------------------------------------------------------------------
