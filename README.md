@@ -1,8 +1,7 @@
-title:    Publish - Subscribe
-subtitle: Programowanie systemowe i współbieżne
-author:   Wojciech Anioł 160137 wojciech.aniol@student.put.poznan.pl
-date:     v3.0, 30.01.2025
-lang:     pl-PL
+#   Publish - Subscribe
+## Programowanie systemowe i współbieżne
+###   Wojciech Anioł 160137 wojciech.aniol@student.put.poznan.pl
+###     v3.0, 30.01.2025
 
 
 Projekt jest dostępny w repozytorium pod adresem: 
