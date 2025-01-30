@@ -72,20 +72,16 @@ void subscribe(TQueue *queue, pthread_t thread)
     }
 
     pthread_mutex_lock(&queue->lock);
-    int i;
-
-    for (i = 0; i < queue->subscribersCount; i++)
-    {
-        if (pthread_equal(queue->subscribers[i].subscriberThread, thread))
-        {
-			pthread_mutex_unlock(&queue->lock);
-            return;
-        }
-    }
 
     if (queue->subscribers == NULL)
     {
         queue->subscribers = malloc(queue->subscribersSize * sizeof(Subscriber));
+        if (queue->subscribers == NULL)
+        {
+            perror("malloc subscribers error");
+            pthread_mutex_unlock(&queue->lock);
+            return;
+        }
     }
     else if (queue->subscribersCount == queue->subscribersSize)
     {
@@ -97,9 +93,14 @@ void subscribe(TQueue *queue, pthread_t thread)
             pthread_mutex_unlock(&queue->lock);
             return;
         }
-        free(queue->subscribers);
         queue->subscribers = newSubscribers;
         queue->subscribersSize = newSize;
+    }
+
+    if (subscriberSearch(queue, thread) > 0)
+    {
+        pthread_mutex_unlock(&queue->lock);
+        return;
     }
 
     Subscriber* subscriber = &queue->subscribers[queue->subscribersCount];
@@ -116,8 +117,6 @@ void subscribe(TQueue *queue, pthread_t thread)
 
 void unsubscribe(TQueue *queue, pthread_t thread)
 {
-    int index, i;
-
     if (queue == NULL)
     {
         perror("Queue NULL pointer");
@@ -125,6 +124,8 @@ void unsubscribe(TQueue *queue, pthread_t thread)
     }
 
     pthread_mutex_lock(&queue->lock);
+
+    int index, i;
 
     index = subscriberSearch(queue, thread);
 
@@ -201,8 +202,6 @@ void addMsg(TQueue *queue, void *msg)
 
 void* getMsg(TQueue *queue, pthread_t thread)
 {
-    int lastRead;
-
     if (queue == NULL)
     {
         perror("Queue NULL pointer");
@@ -210,17 +209,20 @@ void* getMsg(TQueue *queue, pthread_t thread)
     }
 
     pthread_mutex_lock(&queue->lock); // critical section
-    int index = subscriberSearch(queue, thread);
+    int lastRead, index;
+
+    while ((index = subscriberSearch(queue, thread)) != -1 
+        && queue->subscribers[index].availableMessages == 0)
+    {
+        pthread_cond_wait(&queue->newMessages, &queue->lock); // Wait till you get anything to read
+    }
+
+    index = subscriberSearch(queue, thread);
 
     if (index == -1)
     {
         pthread_mutex_unlock(&queue->lock);
         return NULL;
-    }
-
-    while (queue->subscribers[index].availableMessages == 0)
-    {
-        pthread_cond_wait(&queue->newMessages, &queue->lock); // Wait till you get anything to read
     }
 
     // if there is any available message, take its index
@@ -235,7 +237,7 @@ void* getMsg(TQueue *queue, pthread_t thread)
 
     if (queue->recipients[lastRead] <= 0)
     {
-        removeMsg(queue, msg);
+        internalRemove(queue, msg);
     }
 
     pthread_mutex_unlock(&queue->lock); // leaving critical section
