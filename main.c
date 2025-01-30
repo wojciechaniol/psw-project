@@ -10,6 +10,7 @@ void* writerFunc2(void* arg)
     {
         addMsg(queue, letter++);
         addMsg(queue, letter++);
+        removeMsg(queue, &letter);
         addMsg(queue, letter++);
         j++;
         if (j >= 15)
@@ -29,11 +30,16 @@ void* readerFunc2(void* arg)
     subscribe(queue, self);
 	int j = 0;
 
-    while(j < 10)
+    while(1)
     {
-		getMsg(queue, self);
-        getMsg(queue, self);
+		// getMsg(queue, self);
+        // getMsg(queue, self);
 		j++;
+        if (j == 20) 
+        {
+            unsubscribe(queue, self);
+            break;
+        }
     }
 	unsubscribe(queue, self);
 
