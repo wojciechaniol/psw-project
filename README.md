@@ -2,7 +2,7 @@
 # Publish - Subscribe
 ## Programowanie systemowe i współbieżne
 ### Wojciech Anioł 160137 wojciech.aniol@student.put.poznan.pl
-### Data:     v1.0, 25.01.2025
+### Data:     v2.0, 29.01.2025
 ### Repozytorium: https://github.com/wojciechaniol/psw-project
 
 ## Struktury danych
