@@ -11,10 +11,6 @@ void* writerFunc2(void* arg)
         addMsg(queue, letter++);
         addMsg(queue, letter++);
         addMsg(queue, letter++);
-        addMsg(queue, letter++);
-        addMsg(queue, letter++);
-        addMsg(queue, letter++);
-        addMsg(queue, letter++);
         j++;
         if (j >= 15)
         {
@@ -28,28 +24,30 @@ void* writerFunc2(void* arg)
 
 void* readerFunc2(void* arg)
 {
-   TQueue* queue = (TQueue*)arg;
-   pthread_t self = pthread_self();
-   subscribe(queue, &self);
-   int j = 0;
+    TQueue* queue = (TQueue*)arg;
+    pthread_t self = pthread_self();
+    subscribe(queue, self);
+	int j = 0;
 
-   while(j < 50)
-   {
-      getMsg(queue, &self);
-      getMsg(queue, &self);
-      j++;
-   }
-   unsubscribe(queue, &self);
+    while(j < 10)
+    {
+		getMsg(queue, self);
+        getMsg(queue, self);
+		j++;
+    }
+	unsubscribe(queue, self);
 
-   return NULL;
+    return NULL;
 }
 
 int main() 
 {
+    // Initialize a queue with a maximum size
     int maxSize = 2;
     TQueue* queue;
     queue = createQueue(maxSize);
 
+    // Set up threads (4 subscribers and a writer)
     pthread_t writer, subscriber1, subscriber2, subscriber3, subscriber4;
     pthread_create(&subscriber1, NULL, readerFunc2, queue);
     pthread_create(&subscriber2, NULL, readerFunc2, queue);
@@ -62,7 +60,8 @@ int main()
     pthread_join(subscriber3, NULL);
     pthread_join(subscriber4, NULL);
     pthread_join(writer, NULL);
-	
+
+    // Destroy the queue
     destroyQueue(queue);
 
     return 0;
