@@ -16,36 +16,38 @@ Projekt jest dostępny w repozytorium pod adresem:
 ## TQueue
 
 Główną strukturą jest struktura kolejki cyklicznej zaprezentowana poniżej:
-    ```C
-    typedef struct TQueue
-    {
-        // Tablica wskaźników na wiadomości
-        void** messages;
-        // Rozmiar kolejki
-        int maxSize;
-        // Liczba aktualnie składowanych wiadomości
-        int currentSize;
-        // Indeks najstarszego elementu
-        int head;
-        // Indeks najnowszego elementu
-        int tail; 
-        // Tablica liczby odbiorców poszczególnych wiadomości
-        int* recipients; 
-        // Globalny zamek
-        pthread_mutex_t lock;
-        // Zmienna warunkowa sprawdzająca czy liczba wiadomości
-        // w kolejce jest równa jej rozmiarowi 
-        pthread_cond_t isFull; 
-        // Zemienna warunkowa sprawdzająca czy powstała nowa wiadomość
-        pthread_cond_t newMessages; 
-        // Zmienna zawierająca informacje o liczbie subskrybentów
-        int subscribersCount;
-        // Limit subskrybentów 
-        int subscribersSize; 
-        // Tablica zawierająca informacje o poszczególnych subskrybentach
-        Subscriber* subscribers; 
-    } TQueue;
-    ```
+
+```C
+typedef struct TQueue
+{
+    // Tablica wskaźników na wiadomości
+    void** messages;
+    // Rozmiar kolejki
+    int maxSize;
+    // Liczba aktualnie składowanych wiadomości
+    int currentSize;
+    // Indeks najstarszego elementu
+    int head;
+    // Indeks najnowszego elementu
+    int tail; 
+    // Tablica liczby odbiorców poszczególnych wiadomości
+    int* recipients; 
+    // Globalny zamek
+    pthread_mutex_t lock;
+    // Zmienna warunkowa sprawdzająca czy liczba wiadomości
+    // w kolejce jest równa jej rozmiarowi 
+    pthread_cond_t isFull; 
+    // Zemienna warunkowa sprawdzająca czy powstała nowa wiadomość
+    pthread_cond_t newMessages; 
+    // Zmienna zawierająca informacje o liczbie subskrybentów
+    int subscribersCount;
+    // Limit subskrybentów 
+    int subscribersSize; 
+    // Tablica zawierająca informacje o poszczególnych subskrybentach
+    Subscriber* subscribers; 
+} TQueue;
+```
+
 ## Subscriber
 
 Kolejną istotną strukturą danych jest `Subscriber`, która opisuje poszczególnego subskrybenta:
