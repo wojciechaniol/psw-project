@@ -46,5 +46,6 @@ void setSize(TQueue *queue, int size);
 // aktualnej liczby wiadomości w kolejce, to nadmiarowe wiadomości są usuwane
 // z kolejki, począwszy od najstarszych.
 int subscriberSearch(TQueue* queue, pthread_t thread); // matches thread number with subscriber's index
+void internalRemove(TQueue *queue, void *msg); // deletes the msg when lock was already acquired
 
 #endif
