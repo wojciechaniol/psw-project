@@ -16,7 +16,6 @@ Projekt jest dostępny w repozytorium pod adresem:
 ## TQueue
 
 Główną strukturą jest struktura kolejki cyklicznej zaprezentowana poniżej:
-
     ```C
     typedef struct TQueue
     {
@@ -47,7 +46,6 @@ Główną strukturą jest struktura kolejki cyklicznej zaprezentowana poniżej:
         Subscriber* subscribers; 
     } TQueue;
     ```
-
 ## Subscriber
 
 Kolejną istotną strukturą danych jest `Subscriber`, która opisuje poszczególnego subskrybenta:
