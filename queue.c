@@ -47,13 +47,13 @@ void destroyQueue(TQueue *queue)
     return;
 }
 
-int subscriberSearch(TQueue* queue, pthread_t* thread)
+int subscriberSearch(TQueue* queue, pthread_t thread)
 {
     int i, index = -1;
 
     for (i = 0; i < queue->subscribersCount; i++)
     {
-        if(pthread_equal(*queue->subscribers[i].subscriberThread, *thread))
+        if(pthread_equal(queue->subscribers[i].subscriberThread, thread))
         {
             index = i;
             break;
@@ -63,7 +63,7 @@ int subscriberSearch(TQueue* queue, pthread_t* thread)
     return index;
 }
 
-void subscribe(TQueue *queue, pthread_t *thread)
+void subscribe(TQueue *queue, pthread_t thread)
 {
     if (queue == NULL)
     {
@@ -76,14 +76,8 @@ void subscribe(TQueue *queue, pthread_t *thread)
 
     for (i = 0; i < queue->subscribersCount; i++)
     {
-        if (pthread_equal(*queue->subscribers[i].subscriberThread, *thread))
+        if (pthread_equal(queue->subscribers[i].subscriberThread, thread))
         {
-            // for (i = 0; i < 2*(*thread); i++)
-            // {
-            //     printf("\t");
-            // }
-
-            // printf("subscriber %lu already added\n", *thread);
 			pthread_mutex_unlock(&queue->lock);
             return;
         }
@@ -110,27 +104,17 @@ void subscribe(TQueue *queue, pthread_t *thread)
 
     Subscriber* subscriber = &queue->subscribers[queue->subscribersCount];
     subscriber->subscriberThread = thread;
-    subscriber->msgesToRead = malloc(queue->maxSize * sizeof(int));
-    for (i = 0; i < queue->maxSize; i++)
-    {
-        subscriber->msgesToRead[i] = -1;
-    }
+    subscriber->msgesToRead = queue->tail; // new line
 
     subscriber->availableMessages = 0;
 
     queue->subscribersCount++;
 
-    // for (i = 0; i < 2*(*thread); i++)
-    // {
-    //     printf("\t");
-    // }
-    
-    // printf("Thread %lu has just subscribed\n", *thread);
     pthread_mutex_unlock(&queue->lock);
     return;
 }
 
-void unsubscribe(TQueue *queue, pthread_t *thread)
+void unsubscribe(TQueue *queue, pthread_t thread)
 {
     int index, i;
 
@@ -152,18 +136,17 @@ void unsubscribe(TQueue *queue, pthread_t *thread)
 
     Subscriber* subscriber = &queue->subscribers[index];
 
-    for (i = 0; i < subscriber->availableMessages; i++)
+    for (i = 0; i < subscriber->availableMessages; i++) // few changes
     {
-        queue->recipients[subscriber->msgesToRead[i]]--;
-        if (queue->recipients[subscriber->msgesToRead[i]] == 0)
+        queue->recipients[subscriber->msgesToRead]--;
+        if (queue->recipients[subscriber->msgesToRead] == 0)
         {
-            removeMsg(queue, queue->messages[subscriber->msgesToRead[i]]);
+            removeMsg(queue, queue->messages[subscriber->msgesToRead]);
         }
-        subscriber->msgesToRead[i] = -1;
+        subscriber->msgesToRead = (subscriber->msgesToRead+1)%queue->maxSize;
     }
 
     subscriber->availableMessages = 0;
-    free(subscriber->msgesToRead);
 
     for (i = index; i < queue->subscribersCount - 1; i++)
     {
@@ -171,11 +154,6 @@ void unsubscribe(TQueue *queue, pthread_t *thread)
     }
 
     queue->subscribersCount--;
-    // for (i = 0; i < 2*(*thread); i++)
-    // {
-    //     printf("\t");
-    // }
-    // printf("Thread %lu is unsubscribing\n", *thread);
 
     pthread_mutex_unlock(&queue->lock);
     return;
@@ -195,8 +173,6 @@ void addMsg(TQueue *queue, void *msg)
     {
         pthread_cond_wait(&queue->isFull, &queue->lock);
     }
-    
-    // printf("writer is trying to add a message\n");
 
     queue->currentSize++;
     queue->messages[queue->tail] = msg;
@@ -207,7 +183,6 @@ void addMsg(TQueue *queue, void *msg)
     for (i = 0; i < queue->subscribersCount; i++)
     {
         queue->subscribers[i].availableMessages++;
-        queue->subscribers[i].msgesToRead[queue->subscribers[i].availableMessages-1] = queue->tail;
     }
 
     queue->tail = (queue->tail+1) % queue->maxSize;
@@ -225,9 +200,9 @@ void addMsg(TQueue *queue, void *msg)
     pthread_mutex_unlock(&queue->lock); // leaving critical section
 }
 
-void* getMsg(TQueue *queue, pthread_t *thread)
+void* getMsg(TQueue *queue, pthread_t thread)
 {
-    int lastRead, i = 0;
+    int lastRead;
 
     if (queue == NULL)
     {
@@ -240,51 +215,24 @@ void* getMsg(TQueue *queue, pthread_t *thread)
 
     if (index == -1)
     {
-        // for (i = 0; i < 2*(*thread); i++)
-        // {
-        //     printf("\t");
-        // }
-        // printf("NULL for %lu this time\n", *thread);
         pthread_mutex_unlock(&queue->lock);
         return NULL;
     }
 
-    // for (i = 0; i < 2*(*thread); i++)
-    // {
-    //     printf("\t");
-    // }
-    // printf("Thread %lu is waitning for message\n", *thread);
-
     while (queue->subscribers[index].availableMessages == 0)
     {
-        // for (i = 0; i < 2*(*thread); i++)
-        // {
-        //     printf("\t");
-        // }
-
-        // printf("waiting\n");
         pthread_cond_wait(&queue->newMessages, &queue->lock); // Wait till you get anything to read
     }
 
     // if there is any available message, take its index
-    lastRead = queue->subscribers[index].msgesToRead[0];
+    lastRead = queue->subscribers[index].msgesToRead;
 
     void* msg = queue->messages[lastRead];
 
     queue->recipients[lastRead]--;
     queue->subscribers[index].availableMessages--;
 
-    for (i = 0; i < queue->subscribers[index].availableMessages; i++)
-    {
-        queue->subscribers[index].msgesToRead[i] = queue->subscribers[index].msgesToRead[i + 1];
-    }
-
-    // for (i = 0; i < 2*(*thread); i++)
-    // {
-    //     printf("\t");
-    // }
-
-    // printf("Thread %lu received message: %d\n", *thread, (int*)msg);
+    queue->subscribers[index].msgesToRead = (lastRead+1)%queue->maxSize;
 
     if (queue->recipients[lastRead] <= 0)
     {
@@ -293,11 +241,10 @@ void* getMsg(TQueue *queue, pthread_t *thread)
 
     pthread_mutex_unlock(&queue->lock); // leaving critical section
 
-
     return msg;
 }
 
-int getAvailable(TQueue *queue, pthread_t *thread)
+int getAvailable(TQueue *queue, pthread_t thread)
 {
     if (queue == NULL)
     {
@@ -397,14 +344,10 @@ void setSize(TQueue *queue, int size)
             {
                 Subscriber *subscriber = &queue->subscribers[j];
                 
-                if (subscriber->msgesToRead[0] == queue->head)
+                if (subscriber->msgesToRead == queue->head)
                 {
                     subscriber->availableMessages--;
-                    int k;
-                    for (k = 0; k < subscriber->availableMessages; k++)
-                    {
-                        subscriber->msgesToRead[k] = subscriber->msgesToRead[k+1];
-                    }
+                    subscriber->msgesToRead = (subscriber->msgesToRead+1) % queue->maxSize; // new line
                 }
             }
 
@@ -442,24 +385,19 @@ void setSize(TQueue *queue, int size)
             perror("Negative index\n");
         }
 
-        for (j = 0; j < subscriber->availableMessages; j++)
-        {
-            subscriber->msgesToRead[j] = messageIndex+j;
-        }
+        subscriber->msgesToRead = messageIndex % newSize; // new line
     }
 
     // Free the old arrays
     free(queue->messages);
     free(queue->recipients);
 
-    // printf("Writer thread is changing the max size form %d to %d\n", queue->maxSize, newSize);
-
     // Update queue properties
     queue->messages = newMessages;
     queue->recipients = newRecipients;
     queue->maxSize = newSize;
     queue->head = 0;
-    queue->tail = queue->currentSize;
+    queue->tail = queue->currentSize % newSize;
 
     if (queue->currentSize < queue->maxSize)
     {
