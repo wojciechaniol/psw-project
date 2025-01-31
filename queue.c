@@ -352,6 +352,39 @@ void removeMsg(TQueue *queue, void *msg)
         queue->messages[index] = NULL;
         queue->currentSize--;
         
+        for (i = 0; i < queue->subscribersCount; i++)
+        {
+            Subscriber* subscriber = &queue->subscribers[i];
+
+            if ((subscriber->msgesToRead < index && index < queue->head)
+            || (index < queue->head && queue->head <= subscriber->msgesToRead) 
+            || (queue->head <= subscriber->msgesToRead && subscriber->msgesToRead < index)
+            || subscriber->msgesToRead == index)
+            {
+                if (subscriber->availableMessages > 0)
+                {
+                    subscriber->availableMessages--;
+                }
+
+                if (subscriber->msgesToRead == queue->head && index == queue->head 
+                && subscriber->availableMessages > 0)
+                {
+                    subscriber->msgesToRead = (subscriber->msgesToRead+1)%queue->maxSize;
+                }
+            }
+            else if (index != queue->head && index != queue->tail)
+            {
+                if (subscriber->msgesToRead == 0)
+                {
+                    subscriber->msgesToRead = queue->maxSize - 1;
+                }
+                else
+                {
+                    subscriber->msgesToRead--;
+                }
+            }
+        }
+
         if (index == queue->head)
         {
             if (queue->messages[(queue->head+1)%queue->maxSize] != NULL)
@@ -367,42 +400,25 @@ void removeMsg(TQueue *queue, void *msg)
                 queue->tail = previous;
             }
         }
-
-        for (i = 0; i < queue->subscribersCount; i++)
+        else
         {
-            Subscriber* subscriber = &queue->subscribers[i];
+            i = index;
 
-            if ((subscriber->msgesToRead < index && index < queue->head)
-            || (index < queue->head && queue->head <= subscriber->msgesToRead) 
-            || (queue->head <= subscriber->msgesToRead && subscriber->msgesToRead < index)
-            || subscriber->msgesToRead == index)
+            while ((i+1)%queue->maxSize != queue->head)
             {
-                subscriber->availableMessages--;
-            }
-            else
-            {
-                if (subscriber->msgesToRead == 0)
+                queue->messages[i] = queue->messages[i+1];
+                queue->recipients[i] = queue->recipients[i+1];
+                i = (i+1)%queue->maxSize;
+
+                if ((i+1)%queue->maxSize == queue->head) 
                 {
-                    subscriber->msgesToRead = queue->maxSize - 1;
-                }
-                else
-                {
-                    subscriber->msgesToRead--;
+                    queue->messages[i] = NULL;
+                    queue->recipients[i] = 0;
                 }
             }
+
+            queue->tail = (queue->tail == 0) ? queue->maxSize-1 : queue->tail-1;
         }
-
-        i = index;
-
-        while ((i+1)%queue->maxSize != queue->head)
-        {
-            queue->messages[i] = queue->messages[i+1];
-            i = (i+1)%queue->maxSize;
-
-            if ((i+1)%queue->maxSize == queue->head) queue->messages[i] = NULL;
-        }
-
-        queue->tail = (queue->tail == 0) ? queue->maxSize-1 : queue->tail-1;
 
         pthread_cond_broadcast(&queue->isFull);
     }
@@ -428,6 +444,7 @@ void setSize(TQueue *queue, int size)
     {
         // If the new size is smaller, remove excess messages starting from the oldest
         int messagesToRemove = queue->currentSize - newSize;
+
         for (i = 0; i < messagesToRemove; i++) 
         {
             // Using free instead of removeMsg to avoid using unnecessary operations on the message
@@ -471,7 +488,7 @@ void setSize(TQueue *queue, int size)
         newRecipients[i] = queue->recipients[index];
     }
 
-    for (i = 0; i < queue->subscribersCount; i++) 
+    for (i = 0; i < queue->subscribersCount; i++)
     {
         Subscriber *subscriber = &queue->subscribers[i];
 
