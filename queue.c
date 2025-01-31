@@ -198,6 +198,7 @@ void addMsg(TQueue *queue, void *msg)
     }
 
     pthread_mutex_unlock(&queue->lock); // leaving critical section
+    return;
 }
 
 void* getMsg(TQueue *queue, pthread_t thread)
@@ -401,6 +402,8 @@ void removeMsg(TQueue *queue, void *msg)
             if ((i+1)%queue->maxSize == queue->head) queue->messages[i] = NULL;
         }
 
+        queue->tail = (queue->tail == 0) ? queue->maxSize-1 : queue->tail-1;
+
         pthread_cond_broadcast(&queue->isFull);
     }
 
@@ -428,7 +431,6 @@ void setSize(TQueue *queue, int size)
         for (i = 0; i < messagesToRemove; i++) 
         {
             // Using free instead of removeMsg to avoid using unnecessary operations on the message
-            free(queue->messages[queue->head]);
             queue->messages[queue->head] = NULL;
             queue->recipients[queue->head] = 0;
 
@@ -438,8 +440,11 @@ void setSize(TQueue *queue, int size)
                 
                 if (subscriber->msgesToRead == queue->head)
                 {
-                    subscriber->availableMessages--;
-                    subscriber->msgesToRead = (subscriber->msgesToRead+1) % queue->maxSize;
+                    if (subscriber->availableMessages > 0)
+                    {
+                        subscriber->availableMessages--;
+                        subscriber->msgesToRead = (subscriber->msgesToRead+1) % queue->maxSize;
+                    }
                 }
             }
 
