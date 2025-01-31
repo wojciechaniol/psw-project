@@ -14,7 +14,7 @@ TQueue* createQueue(int size)
         newQueue->messages = malloc(sizeof(void *) * (size));
         newQueue->subscribersCount = 0;
         newQueue->subscribersSize = 10;
-        newQueue->subscribers = NULL;
+        newQueue->subscribers = malloc(newQueue->subscribersSize * sizeof(Subscriber));
         pthread_mutex_init(&newQueue->lock, NULL);
         pthread_cond_init(&newQueue->newMessages, NULL);
         pthread_cond_init(&newQueue->isFull, NULL);
@@ -33,6 +33,7 @@ void destroyQueue(TQueue *queue)
     if (queue->messages != NULL)
     {
         free(queue->messages);
+        free(queue->recipients);
     }
 
     if (queue->subscribers != NULL)
@@ -50,6 +51,12 @@ void destroyQueue(TQueue *queue)
 int subscriberSearch(TQueue* queue, pthread_t thread)
 {
     int i, index = -1;
+
+    if (queue == NULL)
+    {
+        perror("Queue NULL pointer");
+        return -1;
+    }
 
     for (i = 0; i < queue->subscribersCount; i++)
     {
@@ -97,7 +104,7 @@ void subscribe(TQueue *queue, pthread_t thread)
         queue->subscribersSize = newSize;
     }
 
-    if (subscriberSearch(queue, thread) > 0)
+    if (subscriberSearch(queue, thread) >= 0)
     {
         pthread_mutex_unlock(&queue->lock);
         return;
@@ -259,6 +266,7 @@ int getAvailable(TQueue *queue, pthread_t thread)
     int index = subscriberSearch(queue, thread);
     if (index == -1)
     {
+        pthread_mutex_unlock(&queue->lock);
         return 0;
     }
 
@@ -323,13 +331,13 @@ void removeMsg(TQueue *queue, void *msg)
 {
     int i, found = 0, index;
 
-    pthread_mutex_lock(&queue->lock);
-
     if (queue == NULL)
     {
         perror("Queue NULL pointer");
         return;
     }
+
+    pthread_mutex_lock(&queue->lock);
 
     if (msg == NULL)
     {
@@ -406,8 +414,8 @@ void removeMsg(TQueue *queue, void *msg)
 
             while ((i+1)%queue->maxSize != queue->head)
             {
-                queue->messages[i] = queue->messages[i+1];
-                queue->recipients[i] = queue->recipients[i+1];
+                queue->messages[i] = queue->messages[(i+1)%queue->maxSize];
+                queue->recipients[i] = queue->recipients[(i+1)%queue->maxSize];
                 i = (i+1)%queue->maxSize;
 
                 if ((i+1)%queue->maxSize == queue->head) 
@@ -497,6 +505,8 @@ void setSize(TQueue *queue, int size)
         if (messageIndex < 0)
         {
             perror("Negative index\n");
+            subscriber->availableMessages = queue->currentSize;
+            messageIndex = 0;
         }
 
         subscriber->msgesToRead = messageIndex % newSize;
@@ -518,4 +528,6 @@ void setSize(TQueue *queue, int size)
     }
 
     pthread_mutex_unlock(&queue->lock); // end of the critical section
+
+    return;   
 }
