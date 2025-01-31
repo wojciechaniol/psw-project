@@ -29,10 +29,9 @@ void* T2(void* arg)
 {
     TQueue* queue = (TQueue*)arg;
     pthread_t self = pthread_self();
-    void* msg;
     subscribe(queue, self);
-    msg = getMsg(queue, self);
-    msg = getMsg(queue, self);
+    getMsg(queue, self);
+    getMsg(queue, self);
 
     return NULL;
 }
@@ -41,9 +40,8 @@ void* T3(void* arg)
 {
     TQueue* queue = (TQueue*)arg;
     pthread_t self = pthread_self();
-    void* msg;
     subscribe(queue, self);
-    msg = getMsg(queue, self);
+    getMsg(queue, self);
 
     return NULL;
 }
